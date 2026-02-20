@@ -1,6 +1,7 @@
 ﻿using System.Text;
 
 namespace KvtSu.Helpers;
+
 public static class StringEx
 {
     public static string TrimHtml(this string s)
@@ -12,6 +13,26 @@ public static class StringEx
         return s.Trim('\r', '\n', '\t', ' ');
     }
 
+    public static string TrimLengthByWord(this string input, int maxLength)
+    {
+        var temp = input;
+        if (temp.Length < maxLength)
+        {
+            return input;
+        }
+
+        var captionBuilder = new StringBuilder();
+        foreach (var word in temp.Split(' '))
+        {
+            if (captionBuilder.Length + word.Length + 1 > maxLength)
+            {
+                break;
+            }
+            captionBuilder.Append(word + " ");
+        }
+        return captionBuilder.ToString().Trim();
+
+    }
     public static string CreateMD5(this string input)
     {
         // Use input string to calculate MD5 hash

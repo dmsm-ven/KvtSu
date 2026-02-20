@@ -33,23 +33,9 @@ public class Formatter
             string mainImage = GetMainImage(product);
 
             string caption = product.Sku + " КВТ " + product.Name;
-            string seoCaption = caption;
-            if (caption.Length > 64)
-            {
-                var captionBuilder = new StringBuilder();
-                foreach (var word in caption.Split(' '))
-                {
-
-                    if (seoCaption.Length + word.Length + 1 > 64)
-                    {
-                        break;
-                    }
-                    sb.Append(word + " ");
-                }
-                seoCaption = captionBuilder.ToString().Trim();
-            }
-            string keyword = seoCaption.GenerateSlug();
-            string meta_title = $"{caption} купить в Санкт-Петербурге";
+            string seoCaption = caption.TrimLengthByWord(maxLength: 128);
+            string keyword = caption.TrimLengthByWord(maxLength: 64).GenerateSlug();
+            string meta_title = $"{seoCaption} купить в Санкт-Петербурге";
             string meta_desc = $"{meta_title} с доставкой по России";
 
             sb
