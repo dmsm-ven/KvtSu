@@ -129,7 +129,7 @@ public class Parser
                 Uri = url
             };
 
-            await ParseProductDetails(product, isSingleProduct: false);
+            await ParseProductDetails(product, isSingleProduct: true);
 
             if (product.Model != null)
             {
@@ -178,6 +178,12 @@ public class Parser
             product.TechDescriptionTableMarkup = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'tab-content')]/div[contains(@class, 'active')]/table")?.OuterHtml.TrimHtml();
             product.ProductPurposeText = doc.DocumentNode.SelectSingleNode("//td[text()='Назначение, применение']/../td[2]")?.InnerText.TrimHtml();
 
+            var shortDescParent = doc.DocumentNode.SelectSingleNode("//div[@class='product-short-desc']")?.InnerHtml?.TrimHtml();
+
+            if (string.IsNullOrWhiteSpace(product.ShortDescriptionMarkup) && !string.IsNullOrWhiteSpace(shortDescParent))
+            {
+                product.ShortDescriptionMarkup = shortDescParent;
+            }
 
             if (doc.DocumentNode.SelectSingleNode("//a[@class='product-image s-lightbox']") != null)
             {
@@ -207,32 +213,33 @@ public class Parser
 
             if (!skipParentCheck)
             {
-                HtmlNode? lastBcLi = null;
-                try
-                {
-                    lastBcLi = doc.DocumentNode
-                        .SelectNodes("//ul[contains(@class, 'breadcrumb')]/li/a")
-                        .Last();
-                }
-                catch
-                {
-                    throw new Exception($"Ошибка парсинга Breadcrums для товара с sku: {product.Sku}");
-                }
+                var link = doc.DocumentNode
+                    .SelectNodes("//ul[contains(@class,'breadcrumb')]/li/a")?
+                    .LastOrDefault();
 
-                var parentProductUri = HOST + lastBcLi.GetAttributeValue("href", null);
-
-                if (!parentProductBuffer.ContainsKey(parentProductUri))
+                var href = link?.GetAttributeValue("href", null);
+                if (string.IsNullOrEmpty(href))
                 {
-                    var parentRoot = new Product()
+                    Debug.WriteLine($"Breadcrumbs не найдены: sku {product.Sku}, {product.Uri}");
+                }
+                else
+                {
+                    var parentUri = new Uri(new Uri(HOST), href).ToString();
+
+                    if (!parentProductBuffer.TryGetValue(parentUri, out var parent))
                     {
-                        Uri = parentProductUri
-                    };
-                    await ParseProductDetails(parentRoot, isSingleProduct: false);
+                        parent = new Product { Uri = parentUri };
+                        await ParseProductDetails(parent, isSingleProduct: true, skipParentCheck: true);
 
-                    parentProductBuffer[parentProductUri] = parentRoot;
+                        if (parent.Model != null)               // кэшируем только удачный разбор
+                            parentProductBuffer[parentUri] = parent;
+                    }
+                    product.ParentProduct = parent;
+                    if (string.IsNullOrWhiteSpace(product.ShortDescriptionMarkup) && !string.IsNullOrWhiteSpace(product.ParentProduct.ShortDescriptionMarkup))
+                    {
+                        product.ShortDescriptionMarkup = product.ParentProduct.ShortDescriptionMarkup;
+                    }
                 }
-
-                product.ParentProduct = parentProductBuffer[parentProductUri];
             }
             else
             {

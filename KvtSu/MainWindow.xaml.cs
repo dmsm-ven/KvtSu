@@ -36,8 +36,6 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Добавить парсинг изображений родительской (из breadcrumb) категории", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
-
         string sitemapLocalPath = Path.Combine(resourceFolder, "sitemap.xml");
         if (!File.Exists(sitemapLocalPath))
         {

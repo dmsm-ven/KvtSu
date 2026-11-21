@@ -234,7 +234,8 @@ public class Formatter
             sb.AppendLine(html);
         }
 
-        if (!string.IsNullOrWhiteSpace(product.ProductPurposeText))
+        if (!string.IsNullOrWhiteSpace(product.ProductPurposeText) &&
+            !(product.ShortDescriptionMarkup ?? "").ToLower().Contains("назначен"))
         {
             sb.AppendLine($"<p>Назначение, применение: {product.ProductPurposeText}</p>");
         }
