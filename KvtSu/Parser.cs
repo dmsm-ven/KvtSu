@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace KvtSu;
+
 public class Parser
 {
     private readonly HttpClient client;
@@ -157,7 +158,10 @@ public class Parser
         await Task.Delay(TimeSpan.FromMilliseconds(new Random().Next(750, 4500)));
     }
 
-    public async Task ParseProductDetails(Product product, bool isSingleProduct, HtmlDocument existedDocument = null)
+    public async Task ParseProductDetails(Product product,
+        bool isSingleProduct,
+        HtmlDocument existedDocument = null,
+        bool skipParentCheck = false)
     {
         var doc = existedDocument ?? await GetDocument(product.Uri);
         if (firstRun)
@@ -175,128 +179,162 @@ public class Parser
             product.ProductPurposeText = doc.DocumentNode.SelectSingleNode("//td[text()='Назначение, применение']/../td[2]")?.InnerText.TrimHtml();
 
 
-            if (doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product-gallery')]/div[@class='product-thumbs-wrap']//img") != null)
+            if (doc.DocumentNode.SelectSingleNode("//a[@class='product-image s-lightbox']") != null)
             {
 
-                var images = doc.DocumentNode.SelectNodes("//div[contains(@class, 'product-gallery')]/div[@class='product-thumbs-wrap']//img")
-                    .Select(img => HOST + img.GetAttributeValue("src", null))
+                var images = doc.DocumentNode.SelectNodes("//a[@class='product-image s-lightbox']")
+                    .Select(img => HOST + img.GetAttributeValue("href", null))
                     .Distinct()
                     .ToArray();
 
                 product.Images.AddRange(images);
-            }
 
-            HtmlNode? lastBcLi = null;
-            try
-            {
-                lastBcLi = doc.DocumentNode
-                    .SelectNodes("//ul[contains(@class, 'breadcrumb')]/li/a")
-                    .Last();
-            }
-            catch
-            {
-                throw new Exception($"Ошибка парсинга Breadcrums для товара с sku: {product.Sku}");
-            }
-
-            var parentProductUri = HOST + lastBcLi.GetAttributeValue("href", null);
-
-            if (!parentProductBuffer.ContainsKey(parentProductUri))
-            {
-                var parentRoot = new Product()
+                if (!skipParentCheck && images.Length == 1)
                 {
-                    Uri = parentProductUri
-                };
-                await ParseProductDetails(parentRoot, isSingleProduct: false);
-
-                parentProductBuffer[parentProductUri] = parentRoot;
-            }
-
-            product.ParentProduct = parentProductBuffer[parentProductUri];
-        }
-        else
-        {
-            var isProductPage = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]");
-            if (isProductPage == null)
-            {
-                //Значит это не страница с товаром
-                return;
-            }
-
-            product.Model = doc.DocumentNode.SelectSingleNode("//ul[@class='breadcrumb']/li[last()]")?.InnerText.TrimHtml();
-
-            if (doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product-thumb')]/img") != null)
-            {
-                var parentImages = doc.DocumentNode
-                    .SelectNodes("//div[contains(@class, 'product-thumb')]/img")
-                    .Select(img => HOST + img.GetAttributeValue("src", String.Empty))
-                    .Where(img => img != HOST && !string.IsNullOrWhiteSpace(img))
-                    .Distinct()
-                    .ToArray();
-
-                product.Images.AddRange(parentImages);
-            }
-
-            if (doc.DocumentNode.SelectSingleNode("//div[@id='collapse1-montage-info']//a[contains(@href, '.pdf')]") != null)
-            {
-                var pdfs = doc.DocumentNode.SelectNodes("//div[@id='collapse1-montage-info']//a[contains(@href, '.pdf')]")
-                    .Select(a => new PdfInstruction()
+                    var parentProduct = new Product()
                     {
-                        Name = a.InnerText.TrimHtml(),
-                        Uri = HOST + a.GetAttributeValue("href", null)
-                    }).ToArray();
+                        Uri = RemoveLastPathSegment(product.Uri)
+                    };
+                    await ParseProductDetails(parentProduct, isSingleProduct: true, skipParentCheck: true);
 
-                product.Instructions.AddRange(pdfs);
+                    if (parentProduct.Images.Any())
+                    {
+                        var newImages = parentProduct.Images.Except(product.Images);
+                        product.Images.AddRange(newImages);
+                    }
+                }
             }
 
-            if (doc.DocumentNode.SelectSingleNode("//ul[@class='product-icons']/li/div") != null)
+            if (!skipParentCheck)
             {
-                var features = doc.DocumentNode.SelectNodes("//ul[@class='product-icons']/li/div")
-                    .Select(div => div.InnerText.TrimHtml())
-                    .ToArray();
+                HtmlNode? lastBcLi = null;
+                try
+                {
+                    lastBcLi = doc.DocumentNode
+                        .SelectNodes("//ul[contains(@class, 'breadcrumb')]/li/a")
+                        .Last();
+                }
+                catch
+                {
+                    throw new Exception($"Ошибка парсинга Breadcrums для товара с sku: {product.Sku}");
+                }
 
-                product.Features.AddRange(features);
+                var parentProductUri = HOST + lastBcLi.GetAttributeValue("href", null);
 
+                if (!parentProductBuffer.ContainsKey(parentProductUri))
+                {
+                    var parentRoot = new Product()
+                    {
+                        Uri = parentProductUri
+                    };
+                    await ParseProductDetails(parentRoot, isSingleProduct: false);
+
+                    parentProductBuffer[parentProductUri] = parentRoot;
+                }
+
+                product.ParentProduct = parentProductBuffer[parentProductUri];
             }
-
-            if (doc.DocumentNode.SelectSingleNode("//td[@data-id='sku']/label") != null)
+            else
             {
-                var skus = doc.DocumentNode.SelectNodes("//td[@data-id='sku']/label")
-                    .Select(label => label.InnerText.TrimHtml())
-                    .Distinct()
-                    .ToArray();
+                var isProductPage = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]");
+                if (isProductPage == null)
+                {
+                    //Значит это не страница с товаром
+                    return;
+                }
 
-                product.ChildProductsSkuList.AddRange(skus);
+                product.Model = doc.DocumentNode.SelectSingleNode("//ul[@class='breadcrumb']/li[last()]")?.InnerText.TrimHtml();
+
+                if (doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product-thumb')]/img") != null)
+                {
+                    var parentImages = doc.DocumentNode
+                        .SelectNodes("//div[contains(@class, 'product-thumb')]/img")
+                        .Select(img => HOST + img.GetAttributeValue("src", String.Empty))
+                        .Where(img => img != HOST && !string.IsNullOrWhiteSpace(img))
+                        .Distinct()
+                        .ToArray();
+
+                    product.Images.AddRange(parentImages);
+                }
+
+                if (doc.DocumentNode.SelectSingleNode("//div[@id='collapse1-montage-info']//a[contains(@href, '.pdf')]") != null)
+                {
+                    var pdfs = doc.DocumentNode.SelectNodes("//div[@id='collapse1-montage-info']//a[contains(@href, '.pdf')]")
+                        .Select(a => new PdfInstruction()
+                        {
+                            Name = a.InnerText.TrimHtml(),
+                            Uri = HOST + a.GetAttributeValue("href", null)
+                        }).ToArray();
+
+                    product.Instructions.AddRange(pdfs);
+                }
+
+                if (doc.DocumentNode.SelectSingleNode("//ul[@class='product-icons']/li/div") != null)
+                {
+                    var features = doc.DocumentNode.SelectNodes("//ul[@class='product-icons']/li/div")
+                        .Select(div => div.InnerText.TrimHtml())
+                        .ToArray();
+
+                    product.Features.AddRange(features);
+
+                }
+
+                if (doc.DocumentNode.SelectSingleNode("//td[@data-id='sku']/label") != null)
+                {
+                    var skus = doc.DocumentNode.SelectNodes("//td[@data-id='sku']/label")
+                        .Select(label => label.InnerText.TrimHtml())
+                        .Distinct()
+                        .ToArray();
+
+                    product.ChildProductsSkuList.AddRange(skus);
+                }
+
+                product.CharacteristicsTableMarkup = doc.DocumentNode.SelectSingleNode("//div[@id='tech-table']/div/table")?.OuterHtml.TrimHtml();
+
+                doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'accordion accordion-simple')]")?.Remove();
+                doc.DocumentNode.SelectSingleNode("//ul[@class='product-icons']")?.Remove();
+                product.ShortDescriptionMarkup = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]//div[contains(@class, 'product-details')]").InnerHtml.TrimHtml();
             }
 
-            product.CharacteristicsTableMarkup = doc.DocumentNode.SelectSingleNode("//div[@id='tech-table']/div/table")?.OuterHtml.TrimHtml();
+            string lengthString = doc.DocumentNode.SelectSingleNode("//td[text()='Длина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
+            string widthString = doc.DocumentNode.SelectSingleNode("//td[text()='Ширина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
+            string heightString = doc.DocumentNode.SelectSingleNode("//td[text()='Высота потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
+            string weightString = doc.DocumentNode.SelectSingleNode("//td[text()='Вес брутто потребительской упаковки, кг']/following-sibling::td").InnerText.TrimHtml();
 
-            doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'accordion accordion-simple')]")?.Remove();
-            doc.DocumentNode.SelectSingleNode("//ul[@class='product-icons']")?.Remove();
-            product.ShortDescriptionMarkup = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]//div[contains(@class, 'product-details')]").InnerHtml.TrimHtml();
-        }
-
-        string lengthString = doc.DocumentNode.SelectSingleNode("//td[text()='Длина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-        string widthString = doc.DocumentNode.SelectSingleNode("//td[text()='Ширина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-        string heightString = doc.DocumentNode.SelectSingleNode("//td[text()='Высота потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-        string weightString = doc.DocumentNode.SelectSingleNode("//td[text()='Вес брутто потребительской упаковки, кг']/following-sibling::td").InnerText.TrimHtml();
-
-        if (decimal.TryParse(lengthString.Replace(".", ","), out var lengthCm))
-        {
-            product.Dimensions.Length = lengthCm * 10;
-        }
-        if (decimal.TryParse(widthString.Replace(".", ","), out var widthCm))
-        {
-            product.Dimensions.Width = widthCm * 10;
-        }
-        if (decimal.TryParse(heightString.Replace(".", ","), out var heightCm))
-        {
-            product.Dimensions.Height = heightCm * 10;
-        }
-        if (decimal.TryParse(weightString.Replace(".", ","), out var weightKg))
-        {
-            product.Dimensions.Weight = weightKg;
+            if (decimal.TryParse(lengthString.Replace(".", ","), out var lengthCm))
+            {
+                product.Dimensions.Length = lengthCm * 10;
+            }
+            if (decimal.TryParse(widthString.Replace(".", ","), out var widthCm))
+            {
+                product.Dimensions.Width = widthCm * 10;
+            }
+            if (decimal.TryParse(heightString.Replace(".", ","), out var heightCm))
+            {
+                product.Dimensions.Height = heightCm * 10;
+            }
+            if (decimal.TryParse(weightString.Replace(".", ","), out var weightKg))
+            {
+                product.Dimensions.Weight = weightKg;
+            }
         }
 
+    }
+
+    public static string RemoveLastPathSegment(string url)
+    {
+        var uri = new Uri(url);
+
+        var segments = uri.AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (segments.Count > 0)
+            segments.RemoveAt(segments.Count - 1);
+
+        var newPath = "/" + string.Join("/", segments) + "/";
+
+        return $"{uri.Scheme}://{uri.Host}{newPath}";
     }
 
     private async Task<Dictionary<string, string>> GetSkuToUriDictionary()
