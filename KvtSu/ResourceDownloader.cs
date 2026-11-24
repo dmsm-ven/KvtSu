@@ -7,6 +7,7 @@ using System.Net;
 using System.Threading.Tasks;
 
 namespace KvtSu;
+
 public partial class Manager
 {
     public class ResourceDownloader
@@ -34,6 +35,7 @@ public partial class Manager
 
         private async Task DownloadProductResources(string folder, Product product)
         {
+
             var images = product.Images.Concat(product?.ParentProduct?.Images ?? new List<string>()).Distinct().ToArray();
 
             foreach (var image in images)
@@ -58,7 +60,7 @@ public partial class Manager
                     }
                 }
             }
-            /*
+
             var instructions = product.Instructions.Concat(product?.ParentProduct.Instructions ?? new List<PdfInstruction>()).Distinct().ToArray();
 
             foreach (var pdf in instructions)
@@ -82,7 +84,7 @@ public partial class Manager
                     }
                 }
             }
-        */
+
         }
     }
 }

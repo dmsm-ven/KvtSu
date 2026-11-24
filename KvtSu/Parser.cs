@@ -243,12 +243,12 @@ public class Parser
             }
             else
             {
-                var isProductPage = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]");
-                if (isProductPage == null)
-                {
-                    //Значит это не страница с товаром
-                    return;
-                }
+                //var isProductPage = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]");
+                //if (isProductPage == null)
+                //{
+                //    //Значит это не страница с товаром
+                //    return;
+                //}
 
                 product.Model = doc.DocumentNode.SelectSingleNode("//ul[@class='breadcrumb']/li[last()]")?.InnerText.TrimHtml();
 
@@ -269,9 +269,17 @@ public class Parser
                     var pdfs = doc.DocumentNode.SelectNodes("//div[@id='collapse1-montage-info']//a[contains(@href, '.pdf')]")
                         .Select(a => new PdfInstruction()
                         {
-                            Name = a.InnerText.TrimHtml(),
-                            Uri = HOST + a.GetAttributeValue("href", null)
+                            Name = a.InnerText.Replace("&nbsp;", " ").TrimHtml(),
+                            Uri = Regex.Replace(
+                                    a.GetAttributeValue("href", string.Empty),
+                                    @"^.*\?pub=(.+)$",
+                                    @"https://lib.net.ru/files/$1")
                         }).ToArray();
+
+                    if (pdfs.Any(pdf => !pdf.Uri.Contains("lib.net")))
+                    {
+                        throw new Exception("Неизвестный источник PDF");
+                    }
 
                     product.Instructions.AddRange(pdfs);
                 }
@@ -300,13 +308,16 @@ public class Parser
 
                 doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'accordion accordion-simple')]")?.Remove();
                 doc.DocumentNode.SelectSingleNode("//ul[@class='product-icons']")?.Remove();
-                product.ShortDescriptionMarkup = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'product product-single')]//div[contains(@class, 'product-details')]").InnerHtml.TrimHtml();
+                product.ShortDescriptionMarkup = doc.DocumentNode
+                    .SelectSingleNode("//div[contains(@class, 'product product-single')]//div[contains(@class, 'product-details')]")
+                    ?.InnerHtml
+                    ?.TrimHtml() ?? "";
             }
 
-            string lengthString = doc.DocumentNode.SelectSingleNode("//td[text()='Длина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-            string widthString = doc.DocumentNode.SelectSingleNode("//td[text()='Ширина потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-            string heightString = doc.DocumentNode.SelectSingleNode("//td[text()='Высота потребительской упаковки, см']/following-sibling::td").InnerText.TrimHtml();
-            string weightString = doc.DocumentNode.SelectSingleNode("//td[text()='Вес брутто потребительской упаковки, кг']/following-sibling::td").InnerText.TrimHtml();
+            string lengthString = doc.DocumentNode.SelectSingleNode("//td[text()='Длина потребительской упаковки, см']/following-sibling::td")?.InnerText.TrimHtml() ?? "0";
+            string widthString = doc.DocumentNode.SelectSingleNode("//td[text()='Ширина потребительской упаковки, см']/following-sibling::td")?.InnerText.TrimHtml() ?? "0";
+            string heightString = doc.DocumentNode.SelectSingleNode("//td[text()='Высота потребительской упаковки, см']/following-sibling::td")?.InnerText.TrimHtml() ?? "0";
+            string weightString = doc.DocumentNode.SelectSingleNode("//td[text()='Вес брутто потребительской упаковки, кг']/following-sibling::td")?.InnerText.TrimHtml() ?? "0";
 
             if (decimal.TryParse(lengthString.Replace(".", ","), out var lengthCm))
             {
