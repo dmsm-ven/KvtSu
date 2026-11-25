@@ -12,7 +12,7 @@ public partial class Manager
 {
     public class ResourceDownloader
     {
-        public async Task DownloadResource(IEnumerable<Product> products, string folder, IProgress<double> indicator)
+        public async Task DownloadResource(IEnumerable<Product> products, string folder, IProgress<double> indicator, bool images = true, bool pdfs = true)
         {
             int total = products.Count();
             int current = 0;
@@ -22,7 +22,7 @@ public partial class Manager
 
                 try
                 {
-                    await DownloadProductResources(folder, product);
+                    await DownloadProductResources(folder, product, images, pdfs);
                 }
                 catch
                 {
@@ -33,54 +33,63 @@ public partial class Manager
             }
         }
 
-        private async Task DownloadProductResources(string folder, Product product)
+        private async Task DownloadProductResources(string folder, Product product, bool downloadImages, bool downloadPdfs)
         {
-
-            var images = product.Images.Concat(product?.ParentProduct?.Images ?? new List<string>()).Distinct().ToArray();
-
-            foreach (var image in images)
+            if (product == null)
             {
-                string localPath = Path.Combine(folder, "products", image.CreateMD5() + Path.GetExtension(image));
+                return;
+            }
 
-                if (!File.Exists(localPath))
+            if (downloadImages)
+            {
+                var images = product.Images.Concat(product?.ParentProduct?.Images ?? new List<string>()).Distinct().ToArray();
+
+                foreach (var image in images)
                 {
-                    var dir = Path.GetDirectoryName(localPath);
-                    if (!Directory.Exists(dir))
-                    {
-                        Directory.CreateDirectory(dir);
-                    }
+                    string localPath = Path.Combine(folder, "products", image.CreateMD5() + Path.GetExtension(image));
 
-                    try
+                    if (!File.Exists(localPath))
                     {
-                        await (new WebClient().DownloadFileTaskAsync(image, localPath));
-                    }
-                    catch
-                    {
-                        throw;
+                        var dir = Path.GetDirectoryName(localPath);
+                        if (!Directory.Exists(dir))
+                        {
+                            Directory.CreateDirectory(dir);
+                        }
+
+                        try
+                        {
+                            await (new WebClient().DownloadFileTaskAsync(image, localPath));
+                        }
+                        catch
+                        {
+                            throw;
+                        }
                     }
                 }
             }
-
-            var instructions = product.Instructions.Concat(product?.ParentProduct.Instructions ?? new List<PdfInstruction>()).Distinct().ToArray();
-
-            foreach (var pdf in instructions)
+            if (downloadPdfs)
             {
-                string localPath = Path.Combine(folder, "pdf", pdf.Uri.CreateMD5() + Path.GetExtension(pdf.Uri));
+                var instructions = product.Instructions.Concat(product?.ParentProduct?.Instructions ?? new List<PdfInstruction>()).Distinct().ToArray();
 
-                if (!File.Exists(localPath))
+                foreach (var pdf in instructions)
                 {
-                    var dir = Path.GetDirectoryName(localPath);
-                    if (!Directory.Exists(dir))
+                    string localPath = Path.Combine(folder, "pdf", pdf.Uri.CreateMD5() + Path.GetExtension(pdf.Uri));
+
+                    if (!File.Exists(localPath))
                     {
-                        Directory.CreateDirectory(dir);
-                    }
-                    try
-                    {
-                        await (new WebClient().DownloadFileTaskAsync(pdf.Uri, localPath));
-                    }
-                    catch
-                    {
-                        throw;
+                        var dir = Path.GetDirectoryName(localPath);
+                        if (!Directory.Exists(dir))
+                        {
+                            Directory.CreateDirectory(dir);
+                        }
+                        try
+                        {
+                            await (new WebClient().DownloadFileTaskAsync(pdf.Uri, localPath));
+                        }
+                        catch
+                        {
+                            throw;
+                        }
                     }
                 }
             }

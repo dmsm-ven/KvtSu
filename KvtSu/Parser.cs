@@ -103,6 +103,8 @@ public class Parser
                 await ParseProductDetails(product, isSingleProduct: true);
             }
 
+
+            await Task.Delay(TimeSpan.FromSeconds(0.5));
             list.Add(product);
 
             progress?.Report((double)++current / total);

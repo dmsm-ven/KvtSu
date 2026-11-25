@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace KvtSu;
+
 public partial class Manager
 {
     private readonly Parser parser;
@@ -90,9 +91,9 @@ public partial class Manager
         }
     }
 
-    internal async Task DownloadResources(string resourceFolder, IProgress<double> progress)
+    internal async Task DownloadResources(string resourceFolder, IProgress<double> progress, bool images = true, bool pdf = true)
     {
-        await resourceDownloader.DownloadResource(products, resourceFolder, progress);
+        await resourceDownloader.DownloadResource(products, resourceFolder, progress, images, pdf);
     }
 
     internal string GetImagesSql()
@@ -121,5 +122,11 @@ public partial class Manager
     {
         var formatter = new Formatter(products, startId);
         return formatter.GetDimensionsSql();
+    }
+
+    internal string GetPdfSql(int startId)
+    {
+        var formatter = new Formatter(products, startId);
+        return formatter.GetPdfSql();
     }
 }

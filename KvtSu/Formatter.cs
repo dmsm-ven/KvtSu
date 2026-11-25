@@ -17,6 +17,8 @@ public class Formatter
     private readonly IReadOnlyList<Product> ModelRangeProducts;
     private readonly int startId;
 
+    private readonly string yandexDiskRoot = File.ReadAllText("yandex_disk_root.txt");
+
     public Formatter(IEnumerable<Product> products, int startId)
     {
         this.products = products.ToList();
@@ -353,5 +355,30 @@ public class Formatter
         }
 
         return sb.ToString();
+    }
+
+    internal string GetPdfSql()
+    {
+        var sb = new StringBuilder();
+
+        sb.AppendLine("INSERT INTO oc_product_pdf (product_id, name, path) VALUES");
+
+        foreach (var p in products)
+        {
+            string product_id = $"(SELECT product_id FROM oc_product WHERE sku = 'KV-{p.Sku}')";
+
+            var pdfs = p.Instructions.Concat(p?.ParentProduct?.Instructions ?? new List<PdfInstruction>()).ToArray();
+
+            foreach (var pdf in pdfs)
+            {
+                string pdfMd5Name = pdf.Uri.CreateMD5() + ".pdf";
+                string path = $"{yandexDiskRoot}/{p.ManufacturerFtpPath}/{pdfMd5Name}";
+                sb.AppendLine($"({product_id}, '{pdf.Name}', '{path}'),");
+            }
+        }
+
+        var result = sb.ToString().Trim('\r', '\n', '\t', ' ', ',') + ";";
+
+        return result;
     }
 }

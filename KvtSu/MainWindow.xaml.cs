@@ -104,7 +104,9 @@ public partial class MainWindow : Window
         IsEnabled = false;
         try
         {
-            await manager.DownloadResources(resourceFolder, new Progress<double>(v => pbIndicator.Value = v));
+            await manager.DownloadResources(resourceFolder, new Progress<double>(v => pbIndicator.Value = v),
+                chbxResourcesDownloadImages.IsChecked == true,
+                chbxResourcesDownloadPdf.IsChecked == true);
         }
         catch (Exception ex)
         {
@@ -158,8 +160,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Window_Loaded_1(object sender, RoutedEventArgs e)
+    private void btnPdfSql_Click(object sender, RoutedEventArgs e)
     {
-
+        btnPdfSql.IsEnabled = false;
+        try
+        {
+            string data = manager.GetPdfSql(PID);
+            Clipboard.SetText(data);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка: {ex.Message}");
+        }
+        finally
+        {
+            btnPdfSql.IsEnabled = true;
+        }
     }
 }

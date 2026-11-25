@@ -32,11 +32,25 @@
             </GroupBox>
 
             <GroupBox Header="Ресурсы">
-                <StackPanel>
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
                     <Button
                         x:Name="btnDownloadResources"
+                        Margin="8,2"
                         Click="btnDownloadResources_Click"
                         Content="Скачать ресурсы" />
+                    <CheckBox
+                        x:Name="chbxResourcesDownloadImages"
+                        Margin="2"
+                        VerticalAlignment="Center"
+                        Content="Изображения" />
+                    <CheckBox
+                        x:Name="chbxResourcesDownloadPdf"
+                        Margin="2"
+                        VerticalAlignment="Center"
+                        Content="PDF" />
                 </StackPanel>
             </GroupBox>
 
@@ -71,6 +85,10 @@
                             x:Name="btnImagesSql"
                             Click="btnImagesSql_Click"
                             Content="SQL изображения" />
+                        <Button
+                            x:Name="btnPdfSql"
+                            Click="btnPdfSql_Click"
+                            Content="SQL Инструкции" />
                         <Button
                             x:Name="btnFillAdjacent"
                             Click="btnFillAdjacent_Click"
